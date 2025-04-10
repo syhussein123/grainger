@@ -1,33 +1,8 @@
-# https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16
-
-# import pyodbc
-#
-# print("Installed ODBC Drivers:")
-# print(pyodbc.drivers())
-
-# products:
-# g_item_no INTEGER PRIMARY KEY,
-# mfr_model INTEGER,
-# product_name VARCHAR(255),
-# brand_series VARCHAR(100),
-# color VARCHAR(50),
-# finishing_features VARCHAR(50),
-# container_type VARCHAR(50),
-# container_size VARCHAR(100),
-# working_time VARCHAR(100),
-# working_time_type VARCHAR(50),
-# product_use VARCHAR(100)
-
-# question:
-# question_id INTEGER PRIMARY KEY,
-# g_item_no INTEGER,
-# question_text VARCHAR(255),
-# answer_text VARCHAR(255),
-# FOREIGN KEY (product_id) REFERENCES Product(product_id)
-
 
 import sqlite3
 
+# This function creates the dummy data we are going to use for the demo.
+#  right now its super simple for testing but we can make it closer to the info they have on their catalog later
 def create_example_data(conn):
     cursor = conn.cursor()
     # Drop tables if they already exist (for demo purposes)
@@ -69,7 +44,6 @@ def create_example_data(conn):
         (1002, 67890, 'Waterproof Sealant', 'SealPro Series', 'Blue', 'Glossy', 'Bottle', '100ml', '45', 'minutes', 'Building and construction'),
         (1003, 54321, 'High-Temp Sealant', 'HeatShield Series', 'Yellow', 'Satin', 'Cartridge', '200ml', '60', 'minutes', 'Automotive')
     ]
-
     cursor.executemany('''
         INSERT INTO Product 
         (g_item_no, mfr_model, product_name, brand_series, color, finishing_features, container_type, container_size, working_time, working_time_type, product_use)
@@ -87,9 +61,11 @@ def create_example_data(conn):
         VALUES (?, ?, ?, ?)
     ''', questions)
 
-
     conn.commit()
 
+
+
+# This function allows the user to search for questions in the question table, and returns the answer
 def search_questions(conn, search_query):
     cursor = conn.cursor()
     sql = """
@@ -101,23 +77,27 @@ def search_questions(conn, search_query):
     cursor.execute(sql, ('%' + search_query + '%',))
     return cursor.fetchall()
 
+
+#  This function adds an entry to the question table
+#  NOTE: should we have this functionality? Because how do we even know the question is right? Shouldn't only tech reps
+#    be able to add questions?
 def insert_q_and_a(conn, question, answer, product_id):
+    # find product id, if product doesn't exist, exit
     cursor = conn.cursor()
     cursor.execute("SELECT g_item_no FROM Product WHERE g_item_no = ?", (product_id,))
     row = cursor.fetchone()
-
     if row is None:
         print(f"Product '{product_id}' not found!")
         return
     else:
         g_item_no = row[0]
 
+    # check for duplicate questions. if duplicate, exit
     cursor.execute(
         "SELECT question_id FROM Question WHERE g_item_no = ? AND LOWER(question_text) = LOWER(?)",
         (g_item_no, question)
     )
     duplicate = cursor.fetchone()
-
     if duplicate is not None:
         print("This question already exists for the product.")
         return
@@ -129,6 +109,8 @@ def insert_q_and_a(conn, question, answer, product_id):
     print("New question and answer have been inserted successfully.")
 
 
+
+
 def main():
     # Connect to an in-memory SQLite database using sqlite3
     # This is so that you start with a clean slate every time you run the code
@@ -136,14 +118,15 @@ def main():
 
     # Create tables and dummy data
     create_example_data(conn)
-    # print("Dummy data created")
 
+    # program menu (we can add more commands here if we need)
     print("Grainger Product Guide\n" +
           "Q - Question lookup\n" +
           "A - Add a question\n")
 
-    # Interactive loop for searching questions
+    # loop for keeping the program running
     while True:
+        # enter a command from the main menu
         command = input("\nEnter your command (or type 'exit' to quit): ")
         command = command.strip().lower()
         if command == 'exit':
@@ -151,6 +134,7 @@ def main():
 
         print("You entered: " + command + "\n")
 
+        # SEARCH A QUESTION
         if command == 'q':
             while True:
                 user_query = input("\nEnter your question: (or type 'exit' to quit): ")
@@ -168,6 +152,7 @@ def main():
                 else:
                     print("No matching questions found. Consider adding this as new data if it's a common query.")
 
+        # ADD A QUESTION/ANSWER COMBO *see note at the beginning of this function - not sure if we should have this functionality*
         if command == 'a':
             user_question = input("\nEnter the question to add: ")
             user_answer = input("\nEnter the answer: ")
@@ -177,9 +162,8 @@ def main():
             continue
 
 
-
+    # close the program
     conn.close()
-
 
 
 
@@ -191,7 +175,7 @@ if __name__ == "__main__":
 
 
 
-
+# /* FARIHA'S CODE */
 
 # productIDList = ["35JE49", "796P22", "1234"]
 #
@@ -229,3 +213,4 @@ if __name__ == "__main__":
 # #testing to see if appended properly
 # for ans in answerList[index]:
 #     print(ans)
+
