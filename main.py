@@ -1,5 +1,10 @@
-
 import sqlite3
+# Vectorize all question texts using TF-IDF, imports and global variables 
+from sklearn.feature_extraction.text import TfidfVectorizer 
+from sklearn.metrics.pairwise import cosine_similarity
+vectorizer = None
+tfidf_matrix = None
+rows = None
 
 # This function creates the dummy data we are going to use for the demo.
 #  right now its super simple for testing but we can make it closer to the info they have on their catalog later
@@ -66,16 +71,16 @@ def create_example_data(conn):
 
 
 # This function allows the user to search for questions in the question table, and returns the answer
-def search_questions(conn, search_query):
-    cursor = conn.cursor()
-    sql = """
-        SELECT q.question_text, q.answer_text, p.product_name 
-        FROM Question AS q
-        JOIN Product AS p ON q.g_item_no = p.g_item_no
-        WHERE q.question_text LIKE ?
-    """
-    cursor.execute(sql, ('%' + search_query + '%',))
-    return cursor.fetchall()
+#def search_questions(conn, search_query):
+    #cursor = conn.cursor()
+    #sql = """
+        #SELECT q.question_text, q.answer_text, p.product_name 
+        #FROM Question AS q
+        #JOIN Product AS p ON q.g_item_no = p.g_item_no
+        #WHERE q.question_text LIKE ?
+    #"""
+    #cursor.execute(sql, ('%' + search_query + '%',))
+    #return cursor.fetchall()
 
 
 #  This function adds an entry to the question table
@@ -108,17 +113,36 @@ def insert_q_and_a(conn, question, answer, product_id):
     conn.commit()
     print("New question and answer have been inserted successfully.")
 
+#function that will use the tfidf protocal that will use cosine simalarity in order to find similar matches over 30%.
+def tfidf_search(user_input, question_texts, tfidf_matrix):
+    user_vec = vectorizer.transform([user_input]) #vectorizing the data
+    similarities = cosine_similarity(user_vec, tfidf_matrix) #cosine simalarity
+    best_match_idx = similarities.argmax() #sorts the indexes by best match
+    best_score = similarities[0, best_match_idx] #simalarity scores
 
-
+    if best_score > 0.3:  # we can change this but I did above 30% for now. 
+        return rows[best_match_idx]
+    else:
+        return None
 
 def main():
+    global vectorizer, tfidf_matrix, rows #global variables to allow the search and save. 
+
     # Connect to an in-memory SQLite database using sqlite3
     # This is so that you start with a clean slate every time you run the code
     conn = sqlite3.connect(":memory:")
-
     # Create tables and dummy data
     create_example_data(conn)
+    cursor = conn.cursor()
 
+    #gets existing questions from the database in order to build the tfidf model (may need to tweak the code in order to do this after questions are added )
+    cursor.execute("SELECT question_id, question_text, answer_text, g_item_no FROM Question")
+    rows = cursor.fetchall()
+    #vectorization 
+    question_texts = [row[1] for row in rows]
+    vectorizer = TfidfVectorizer()
+    tfidf_matrix = vectorizer.fit_transform(question_texts)
+    
     # program menu (we can add more commands here if we need)
     print("Grainger Product Guide\n" +
           "Q - Question lookup\n" +
@@ -141,14 +165,24 @@ def main():
 
                 if user_query == 'exit':
                     break
-                results = search_questions(conn, user_query)
-                if results:
-                    for question_text, answer_text, product_name in results:
-                        print(f"\nProduct: {product_name}")
-                        print(f"Question: {question_text}")
-                        print(f"Answer: {answer_text}")
-                        print("-" * 40)
-
+                # results = search_questions(conn, user_query)
+                # if results:
+                #     for question_text, answer_text, product_name in results:
+                #         print(f"\nProduct: {product_name}")
+                #         print(f"Question: {question_text}")
+                #         print(f"Answer: {answer_text}")
+                #         print("-" * 40)
+                
+                #same printing method, just with different function call.
+                result = tfidf_search(user_query, question_texts, tfidf_matrix)
+                if result:
+                    question_text, answer_text, product_id = result[1], result[2], result[3]
+                    cursor.execute("SELECT product_name FROM Product WHERE g_item_no = ?", (product_id,))
+                    product_name = cursor.fetchone()[0]
+                    print(f"\nProduct: {product_name}")
+                    print(f"Question: {question_text}")
+                    print(f"Answer: {answer_text}")
+                    print("-" * 40)
                 else:
                     print("No matching questions found. Consider adding this as new data if it's a common query.")
 
@@ -169,9 +203,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
 
 
 
