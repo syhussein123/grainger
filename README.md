@@ -32,6 +32,12 @@ Shuroq added code in order to incorporate TFIDF searching, that way the user doe
 
 Now we have an intelligent search algorithm in order to match queries that are being check in stored questions.  <br>
 
+Searches are powered by TF-IDF. Users can type natural language questions, and the app returns the top 3 most similar Q&A matches from the database. <br>
+
+- New Q&A entries auto-refresh the model. <br>
+- Matching is semantic — not just keywords. <br>
+- Results are sorted by confidence and shown as percentages. <br>
+
 Example questions to try <br>
 User input: "What’s the best way to use Super Adhesive?" <br>
 Will match: "How do I install Super Adhesive?" <br>
