@@ -114,16 +114,33 @@ def insert_q_and_a(conn, question, answer, product_id):
     print("New question and answer have been inserted successfully.")
 
 #function that will use the tfidf protocal that will use cosine simalarity in order to find similar matches over 30%.
-def tfidf_search(user_input, question_texts, tfidf_matrix):
-    user_vec = vectorizer.transform([user_input]) #vectorizing the data
-    similarities = cosine_similarity(user_vec, tfidf_matrix) #cosine simalarity
-    best_match_idx = similarities.argmax() #sorts the indexes by best match
-    best_score = similarities[0, best_match_idx] #simalarity scores
+# def tfidf_search(user_input, question_texts, tfidf_matrix):
+#     user_vec = vectorizer.transform([user_input]) #vectorizing the data
+#     similarities = cosine_similarity(user_vec, tfidf_matrix) #cosine simalarity
+#     best_match_idx = similarities.argmax() #sorts the indexes by best match
+#     best_score = similarities[0, best_match_idx] #simalarity scores
 
-    if best_score > 0.3:  # we can change this but I did above 30% for now. 
-        return rows[best_match_idx]
-    else:
-        return None
+#     if best_score > 0.3:  # we can change this but I did above 30% for now. 
+#         return rows[best_match_idx]
+#     else:
+#         return None
+def tfidf_search_all(user_input, question_texts, tfidf_matrix, threshold=0.2):
+    user_vec = vectorizer.transform([user_input])
+    similarities = cosine_similarity(user_vec, tfidf_matrix)[0]
+
+    # Pair each similarity score with the corresponding row index
+    scored_matches = [(i, score) for i, score in enumerate(similarities) if score > threshold]
+
+    # Sort by score descending
+    scored_matches.sort(key=lambda x: x[1], reverse=True)
+
+    # Return a list of tuples: (question_text, answer_text, product_id, similarity)
+    results = []
+    for i, score in scored_matches:
+        question_text, answer_text, product_id = rows[i][1], rows[i][2], rows[i][3]
+        results.append((question_text, answer_text, product_id, score))
+
+    return results
 
 def main():
     global vectorizer, tfidf_matrix, rows #global variables to allow the search and save. 
@@ -165,26 +182,30 @@ def main():
 
                 if user_query == 'exit':
                     break
-                # results = search_questions(conn, user_query)
-                # if results:
-                #     for question_text, answer_text, product_name in results:
-                #         print(f"\nProduct: {product_name}")
-                #         print(f"Question: {question_text}")
-                #         print(f"Answer: {answer_text}")
-                #         print("-" * 40)
-                
-                #same printing method, just with different function call.
-                result = tfidf_search(user_query, question_texts, tfidf_matrix)
-                if result:
-                    question_text, answer_text, product_id = result[1], result[2], result[3]
-                    cursor.execute("SELECT product_name FROM Product WHERE g_item_no = ?", (product_id,))
-                    product_name = cursor.fetchone()[0]
-                    print(f"\nProduct: {product_name}")
-                    print(f"Question: {question_text}")
-                    print(f"Answer: {answer_text}")
-                    print("-" * 40)
+                # result = tfidf_search(user_query, question_texts, tfidf_matrix)
+                # if result:
+                #     question_text, answer_text, product_id = result[1], result[2], result[3]
+                #     cursor.execute("SELECT product_name FROM Product WHERE g_item_no = ?", (product_id,))
+                #     product_name = cursor.fetchone()[0]
+                #     print(f"\nProduct: {product_name}")
+                #     print(f"Question: {question_text}")
+                #     print(f"Answer: {answer_text}")
+                #     print("-" * 40)
+                # else:
+                #     print("No matching questions found. Consider adding this as new data if it's a common query.")
+                results = tfidf_search_all(user_query, question_texts, tfidf_matrix)
+                if results:
+                    for question_text, answer_text, product_id, score in results[:3]:
+                        cursor.execute("SELECT product_name FROM Product WHERE g_item_no = ?", (product_id,))
+                        product_name = cursor.fetchone()[0]
+                        print(f"\nProduct: {product_name}")
+                        print(f"Question: {question_text}")
+                        print(f"Answer: {answer_text}")
+                        print(f"Similarity: {score * 100:.1f}%")
+                        print("-" * 40)
+                        print()
                 else:
-                    print("No matching questions found. Consider adding this as new data if it's a common query.")
+                    print("No matching questions found.")
 
         # ADD A QUESTION/ANSWER COMBO *see note at the beginning of this function - not sure if we should have this functionality*
         if command == 'a':
@@ -193,6 +214,13 @@ def main():
             user_p_id = input("\nEnter the product id (only numbers): ")
 
             insert_q_and_a(conn, user_question, user_answer, user_p_id)
+            cursor.execute("SELECT question_id, question_text, answer_text, g_item_no FROM Question")
+            rows = cursor.fetchall()  # Update global rows
+            question_texts = [row[1] for row in rows]
+            vectorizer = TfidfVectorizer()
+            tfidf_matrix = vectorizer.fit_transform(question_texts)
+
+            print("TF-IDF model updated with new question.\n")
             continue
 
 
