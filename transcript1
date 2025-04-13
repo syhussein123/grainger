@@ -1,0 +1,60 @@
+{
+      "results": [
+         {
+           "alternatives": [
+              {
+                 "transcript": "Agent: Hello, thank you for calling. How may I help you?",
+                 "confidence": 0.95
+              }
+           ]
+         },
+         {
+           "alternatives": [
+              {
+                 "transcript": "Customer: I need details for product ID 12345. What is the warranty?",
+                 "confidence": 0.92
+              }
+           ]
+         },
+         {
+           "alternatives": [
+              {
+                 "transcript": "Agent: The warranty is one year.",
+                 "confidence": 0.96
+              }
+           ]
+         },
+         {
+           "alternatives": [
+              {
+                 "transcript": "Customer: Also, does it come in different colors?",
+                 "confidence": 0.93
+              }
+           ]
+         },
+         {
+           "alternatives": [
+              {
+                 "transcript": "Agent: Yes, it is available in red, blue, and green.",
+                 "confidence": 0.94
+              }
+           ]
+         },
+         {
+           "alternatives": [
+              {
+                 "transcript": "Customer: For product ID 67890, what is the price?",
+                 "confidence": 0.92
+              }
+           ]
+         },
+         {
+           "alternatives": [
+              {
+                 "transcript": "Agent: The price is $299.",
+                 "confidence": 0.96
+              }
+           ]
+         }
+      ]
+    }
