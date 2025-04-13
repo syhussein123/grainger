@@ -4,7 +4,7 @@ installations may be needed:
 For mac, run these commands in terminal: <br>
 
 brew install python <br>
-
+hi 
 python3 -m venv grainger-venv <br>
 source grainger-venv/bin/activate <br>
 
