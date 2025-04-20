@@ -50,5 +50,46 @@ Will match: "How do I apply Waterproof Sealant" <br>
 User Input: "Can this High-Temp Sealant handle extreme heat" <br>
 Will match: "What the the temperature limits for High-Temp Sealant" <br>
 
+
+## Kyla's update: upvote functionality
+C:\Users\kgonza39\AppData\Local\anaconda3\python.exe C:\Users\kgonza39\PycharmProjects\grainger\main.py 
+Grainger Product Guide
+Q - Question lookup
+P - View all question/answer pairs
+E - Exit
+
+Enter command: q
+
+Enter your question (or type 'exit' to return to main menu): how install
+
+Product: Super Adhesive
+Question: How do I install Super Adhesive?
+Answer: Clean the surface, apply the adhesive evenly, and allow it to cure for 30 minutes.
+Additional Info:
+ • [2] Clamp joints during curing for best bond strength.  (upvotes: 0)
+ • [3] Use a primer on porous surfaces before applying the adhesive.  (upvotes: 0)
+ • [4] Store unused adhesive in a cool, dry place to extend shelf life.  (upvotes: 0)
+Similarity: 61.6%
+..... MORE OUTPUT HERE
+
+the number next to the additional info answer is the answer id, so when this is prompted:
+
+Enter 'u <answer_id>' to upvote, 'f <answer_id>' to flag, or press Enter to new query:
+
+and if you want to upvote answer 2, you just type in "u 2":
+Answer 2 upvoted! New score: 1
+
+Product: Super Adhesive
+Question: How do I install Super Adhesive?
+Answer: Clean the surface, apply the adhesive evenly, and allow it to cure for 30 minutes.
+Additional Info:
+ • [2] Clamp joints during curing for best bond strength.  (upvotes: 1) ----- SEE THE UPDATED UPVOTE HERE
+ • [3] Use a primer on porous surfaces before applying the adhesive.  (upvotes: 0)
+ • [4] Store unused adhesive in a cool, dry place to extend shelf life.  (upvotes: 0)
+Similarity: 61.6%
+
+then it will show the update. If you keep upvoting 4 for example, you'll see it move up the list the next time it is output. If you want to enter a new question just press enter without typing anything and you can enter another question
+
+
 ## To Do:
 - [ ] 
