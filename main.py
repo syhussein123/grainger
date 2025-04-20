@@ -61,7 +61,10 @@ def review_and_edit_records(records):
         while True:
             edit_option = input("Do you want to edit this record? (y/n): ").strip().lower()
             if edit_option == 'y':
-                field = input("Which field? (product/question/answer/add): ").strip().lower()
+                print()
+                print("You Can: \n -Update Product ID \n -Update Question \n -Update Answer \n -Add Additional Information \n -Append Important Information to Current Answer")
+                print()
+                field = input("Which field? (product/question/answer/add/append):").strip().lower()
                 if field in ["product", "question", "answer"]:
                     new_val = input(f"Enter new value for {field}: ").strip()
                     if field == "product":
@@ -73,6 +76,14 @@ def review_and_edit_records(records):
                 elif field == "add":
                     extra = input("Enter ADDITIONAL info to add: ").strip()
                     record["additional_answers"].append(extra)
+                elif field == "append":
+                    more_text = input("Enter the text to append to the main answer: ").strip()
+                    if record["answer"]:
+                        record["answer"] += " " + more_text
+                    else:
+                        record["answer"] = more_text
+                    print("Updated main answer after appending:")
+                    print(f"  {record['answer']}")
                 else:
                     print("Invalid choice. Use product, question, answer, or add.")
                     continue
@@ -94,9 +105,6 @@ def review_and_edit_records(records):
                 print("Please enter 'y' or 'n'.")
         print("\n")
     return records
-
-
-
 
 def insert_question_records(conn, records):
     """
@@ -315,14 +323,16 @@ def main():
     vectorizer = TfidfVectorizer()
     tfidf_matrix = vectorizer.fit_transform(question_texts)
 
-    print("Grainger Product Guide\n" +
+    while True:
+        print()
+        print("Grainger Product Guide\n" +
           "Q - Question lookup\n" +
           "A - Add An Answer\n" +
           "P - View all question/answer pairs\n" +
           "E - Exit\n")
-
-    while True:
+        print()
         cmd = input("Enter command: ").strip().lower()
+        print()
         if cmd in ('e', 'exit'):
             break
 
