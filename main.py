@@ -9,6 +9,131 @@ vectorizer = None
 tfidf_matrix = None
 rows = None  # will hold (question_id, question_text, answer_text, g_item_no) → we’ll reshape this
 
+def parse_json_transcript(file_path):
+    # list to store q and a dictionaries
+    records = []
+    current_product_id = None
+    qa_pending = None
+
+    with open(file_path, "r", encoding="utf-8") as f:
+        transcript_data = json.load(f)
+    for result in transcript_data.get("results", []):
+        alt = result.get("alternatives", [])[0]
+        utterance = alt.get("transcript", "").strip()
+
+        # Look for a product ID pattern
+        prod_id_match = re.search(r'product\s*ID\s*([0-9]+)', utterance, re.IGNORECASE)
+        if prod_id_match:
+            current_product_id = prod_id_match.group(1)
+
+        # Identify a Customer question.
+        if utterance.startswith("Customer:"):
+            text = utterance.split("Customer:")[-1].strip()
+            if text.endswith('?'):
+                # qa_pending = {"product_id": current_product_id, "question": text}
+                qa_pending = {
+                    "product_id": current_product_id,
+                    "question": text,
+                    "answer": None,
+                    "additional_answers": []
+                }
+
+        # Look for an Agent answer following a Customer question.
+        elif utterance.startswith("Agent:"):
+            text = utterance.split("Agent:")[-1].strip()
+            if qa_pending and text:
+                qa_pending["answer"] = text
+                records.append(qa_pending)
+                qa_pending = None
+    return records
+
+
+def review_and_edit_records(records):
+    """
+    Provides a CLI-based interface for the agent to review and optionally edit the extracted records.
+    """
+    print("\nReview the extracted Q&A records:\n")
+    for idx, record in enumerate(records, start=1):
+        print(f"Record {idx}:")
+        print(f"  Product ID: {record['product_id']}")
+        print(f"  Question  : {record['question']}")
+        print(f"  Answer    : {record['answer']}")
+        while True:
+            edit_option = input("Do you want to edit this record? (y/n): ").strip().lower()
+            if edit_option == 'y':
+                field = input("Which field? (product/question/answer/add): ").strip().lower()
+                if field in ["product", "question", "answer"]:
+                    new_val = input(f"Enter new value for {field}: ").strip()
+                    if field == "product":
+                        record["product_id"] = new_val
+                    elif field == "question":
+                        record["question"] = new_val
+                    else:  # answer
+                        record["answer"] = new_val
+                elif field == "add":
+                    extra = input("Enter ADDITIONAL info to add: ").strip()
+                    record["additional_answers"].append(extra)
+                else:
+                    print("Invalid choice. Use product, question, answer, or add.")
+                    continue
+
+                # reprint the updated record:
+                print("Updated record:")
+                print(f"  Product ID: {record['product_id']}")
+                print(f"  Question  : {record['question']}")
+                print(f"  Primary   : {record['answer']}")
+                if record["additional_answers"]:
+                    print("  Extras  :")
+                    for extra in record["additional_answers"]:
+                        print(f"    - {extra}")
+                else:
+                    print("Invalid field. Please choose product, question, or answer.")
+            elif edit_option == 'n':
+                break
+            else:
+                print("Please enter 'y' or 'n'.")
+        print("\n")
+    return records
+
+
+
+
+def insert_question_records(conn, records):
+    """
+    Inserts each record into Question + Answer.
+    Stores the one primary answer, then any additional_answers as non-primary.
+    """
+    cursor = conn.cursor()
+    for rec in records:
+        try:
+            g_item_no = int(rec["product_id"])
+        except ValueError:
+            print(f"Invalid product id: {rec['product_id']}")
+            continue
+
+        # 1) Insert the question
+        cursor.execute(
+            "INSERT INTO Question (g_item_no, question_text) VALUES (?, ?)",
+            (g_item_no, rec["question"])
+        )
+        qid = cursor.lastrowid
+
+        # 2) Insert the primary answer
+        cursor.execute(
+            "INSERT INTO Answer (question_id, answer_text, is_primary) VALUES (?, ?, 1)",
+            (qid, rec["answer"])
+        )
+
+        # 3) Insert any additional answers
+        for extra in rec.get("additional_answers", []):
+            cursor.execute(
+                "INSERT INTO Answer (question_id, answer_text, is_primary) VALUES (?, ?, 0)",
+                (qid, extra)
+            )
+
+    conn.commit()
+
+
 def create_example_data(conn):
     cursor = conn.cursor()
     # Drop tables if they already exist
@@ -138,32 +263,36 @@ def tfidf_search_all(user_input, question_texts, tfidf_matrix, threshold=0.2):
 
 def print_all_qas(conn):
     """
-    Prints all question/answer pairs in a table:
-      Question ID | Product ID | Question                     | Answer
-    with primary answers for each question shown first, followed by any additional info.
+    Prints all Q&As in columns: Question ID | Product ID | Question | Answer
+    with primary answers first, then extras (upvotes DESC, answer_id ASC).
     """
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT
-          q.question_id,
-          q.g_item_no,
-          q.question_text,
-          a.answer_text
-        FROM Question q
-        JOIN Answer   a ON q.question_id = a.question_id
-        ORDER BY q.question_id, a.is_primary DESC, a.upvotes DESC, a.answer_id ASC
+      SELECT
+        q.question_id AS QID,
+        q.g_item_no   AS PID,
+        q.question_text AS Question,
+        a.answer_text   AS Answer
+      FROM Question q
+      JOIN Answer   a ON q.question_id = a.question_id
+      ORDER BY
+        q.question_id,
+        a.is_primary  DESC,
+        a.upvotes     DESC,
+        a.answer_id   ASC
     ''')
     rows = cursor.fetchall()
 
-    if rows:
-        header = f"{'Question ID':<12} {'Product ID':<10} {'Question':<50} {'Answer':<50}"
-        print(header)
-        print("-" * len(header))
-        for qid, pid, qtext, atext in rows:
-            print(f"{qid:<12} {pid:<10} {qtext:<50} {atext:<50}")
-    else:
-        print("No Q&A entries found in the database.")
+    if not rows:
+        print("No Q&A entries found.")
+        return
 
+    header = f"{'QID':<5} {'PID':<5} {'Question':<50} {'Answer':<50}"
+    print(header)
+    print("-" * len(header))
+    for qid, pid, qtext, atext in rows:
+        print(f"{qid:<5} {pid:<5} {qtext:<50} {atext:<50}")
+    print()
 
 def main():
     global vectorizer, tfidf_matrix, rows
@@ -172,15 +301,23 @@ def main():
     create_example_data(conn)
     cursor = conn.cursor()
 
+    # Define product categories and associated product IDs
+    categories = {
+        "adhesives": set(range(1000, 1006)),
+        "safety":    set(range(2000, 2006)),
+        "light":     set(range(3000, 3006)),
+    }
+
     # Build the TF‑IDF model
     cursor.execute("SELECT question_id, question_text, g_item_no FROM Question")
     rows = cursor.fetchall()
     question_texts = [r[1] for r in rows]
-    vectorizer   = TfidfVectorizer()
+    vectorizer = TfidfVectorizer()
     tfidf_matrix = vectorizer.fit_transform(question_texts)
 
     print("Grainger Product Guide\n" +
           "Q - Question lookup\n" +
+          "A - Add An Answer\n" +
           "P - View all question/answer pairs\n" +
           "E - Exit\n")
 
@@ -189,30 +326,42 @@ def main():
         if cmd in ('e', 'exit'):
             break
 
-        if cmd == 'q':
-            # Enter question‑lookup mode
+        elif cmd == 'q':
+            # Ask for product category first
+            print("\nAvailable categories: adhesives, safety, light")
+            cat = input("Enter a product category (or 'exit' to return): ").strip().lower()
+            if cat == 'exit':
+                print()
+                continue
+
+            if cat not in categories:
+                print("Unknown category. Returning to main menu.\n")
+                continue
+
+            allowed_ids = categories[cat]
+
             while True:
                 user_query = input("\nEnter your question (or type 'exit' to return to main menu): ").strip()
                 if user_query.lower() == 'exit':
-                    print()  # blank line before re-showing main menu
+                    print()
                     break
 
-                results = tfidf_search_all(user_query, question_texts, tfidf_matrix)
+                results = [
+                    r for r in tfidf_search_all(user_query, question_texts, tfidf_matrix)
+                    if r[2] in allowed_ids
+                ]
+
                 if not results:
-                    print("No matching questions found.")
+                    print("No matching questions found for that category.")
                     continue
 
                 while True:
-                    # Show top 3 matches
                     for qid, qtext, gid, score in results[:3]:
-                        # fetch product name
                         cursor.execute("SELECT product_name FROM Product WHERE g_item_no = ?", (gid,))
                         pname = cursor.fetchone()[0]
-
                         print(f"\nProduct: {pname}")
                         print(f"Question: {qtext}")
 
-                        # Primary answer
                         cursor.execute(
                             "SELECT answer_text FROM Answer WHERE question_id = ? AND is_primary = 1",
                             (qid,)
@@ -221,7 +370,6 @@ def main():
                         if primary:
                             print(f"Answer: {primary[0]}")
 
-                        # additional info, now sorted by upvotes desc, id asc
                         cursor.execute(
                             """SELECT answer_id, answer_text, upvotes
                                FROM Answer
@@ -238,11 +386,7 @@ def main():
                         print(f"Similarity: {score*100:.1f}%")
                         print("-"*40)
 
-                    # after showing answers, allow upvote or flag
-                    action = input(
-                        "Enter 'u <answer_id>' to upvote, 'f <answer_id>' to flag, or press Enter to new query: "
-                    ).strip().lower()
-
+                    action = input("Enter 'u <answer_id>' to upvote, 'f <answer_id>' to flag, or press Enter for new query: ").strip().lower()
                     if action == '':
                         print()
                         break
@@ -268,38 +412,39 @@ def main():
                         try:
                             aid = int(action.split()[1])
                             reason = input("Enter flag reason: ").strip()
-                            # prototype: we won't store flags, just print confirmation
                             print(f"Answer {aid} flagged for review. Reason: {reason}")
                         except ValueError:
                             print("Invalid answer ID.")
-                    # on blank or any other input we loop back to ask a new question
-                    elif action.startswith('f '):
-                        try:
-                            aid = int(action.split()[1])
-                            reason = input("Enter flag reason: ").strip()
-                            # prototype: only confirm, not store
-                            print(f"Answer {aid} flagged for review. Reason: {reason}\n")
-                        except ValueError:
-                            print("Invalid answer ID.\n")
-
                     else:
                         print("Unrecognized command.\n")
 
+        elif cmd == 'a':
+            (file_path) = input("Enter the path to the JSON transcript file: ").strip()
+            try:
+                records = parse_json_transcript(file_path)
+                if not records:
+                    print("No Q&A pairs were found in the transcript.")
+                    return
+                records = review_and_edit_records(records)
 
+                print("Final Q&A entries:")
+                for idx, rec in enumerate(records, start=1):
+                    print(f"{idx}. Product ID: {rec['product_id']} | Question: {rec['question']} | Answer: {rec['answer']}")
+                confirm = input("Are you happy with these entries? (y/n): ").strip().lower()
+                if confirm == 'y':
+                    insert_question_records(conn, records)
 
-                # # Additional Info
-                    # cursor.execute(
-                    #     "SELECT answer_text FROM Answer WHERE question_id = ? AND is_primary = 0",
-                    #     (qid,)
-                    # )
-                    # extras = cursor.fetchall()
-                    # if extras:
-                    #     print("Additional Info:")
-                    #     for (txt,) in extras:
-                    #         print(f" • {txt}")
-                    #
-                    # print(f"Similarity: {score*100:.1f}%")
-                    # print("-"*40)
+                else:
+                    print("Record insertion canceled.")
+            except FileNotFoundError:
+                print("The file was not found. Please check the path and try again.")
+            except json.JSONDecodeError:
+                print("There was an error parsing the JSON file. Please ensure the file is in proper JSON format.")
+
+                vectorizer = TfidfVectorizer()
+                tfidf_matrix = vectorizer.fit_transform(question_texts)
+                print("TF-IDF model updated with new question.\n")
+                continue
 
         elif cmd == 'p':
             print_all_qas(conn)
@@ -313,6 +458,10 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# if flagged as unhelpful move to the bottom
+# add a note for next rep
 
 
 # import sqlite3
