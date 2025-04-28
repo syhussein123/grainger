@@ -204,10 +204,19 @@ def create_example_data(conn):
 
     # questions
     questions = [
-        (1, 1001, 'How do I install Super Adhesive?'),
-        (2, 1002, 'How do I apply Waterproof Sealant?'),
-        (3, 1003, 'What are the temperature limits for High-Temp Sealant?')
+        # Question 1: Damp surfaces
+        (1, 1001, 'Is this adhesive safe to use on damp wood or concrete?'),
+        # Question 2: Fume exposure
+        (2, 1001, 'Does this adhesive release harmful fumes during curing on wood?'),
+        # Question 3: Enclosed spaces
+        (3, 1001, 'Can this product be applied in enclosed spaces without ventilation?'),
+        # You could add more safety questions here, e.g.:
+        # (4, 1001, 'Is it safe to use this adhesive around children or pets?'),
+        # (5, 1001, 'Is this product flammable or heat-sensitive?'),
     ]
+
+
+
     cursor.executemany('''
       INSERT INTO Question (question_id, g_item_no, question_text)
       VALUES (?, ?, ?)
@@ -215,35 +224,36 @@ def create_example_data(conn):
 
     # answers: one primary per qid plus three “additional info” each
     answers = [
-        # Question 1
+        # Q1: Damp surfaces
         (1, 1,
-         'Clean the surface, apply the adhesive evenly, and allow it to cure for 30 minutes.', 1),
+          'Yes, most construction adhesives are moisture-resistant, but for optimal strength, surfaces should be as dry as possible.', 1),
         (2, 1,
-         'Clamp joints during curing for best bond strength.',                           0),
+          'Applying on damp surfaces may extend cure time; ensure surfaces are at least surface-dry before use.', 0),
         (3, 1,
-         'Use a primer on porous surfaces before applying the adhesive.',                 0),
+          'Pre-treat very porous materials (like untreated wood) with a primer to improve bonding.', 0),
         (4, 1,
-         'Store unused adhesive in a cool, dry place to extend shelf life.',             0),
+          'Avoid applying below 40°F (4°C), as low temperatures can significantly slow curing.', 0),
 
-        # Question 2
+        # Q2: Fume exposure
         (5, 2,
-         'Ensure surfaces are dry, apply a thin layer, and let dry for 45 minutes.',     1),
+          'The adhesive emits minimal VOCs during curing, but you should always work in a well-ventilated area.', 1),
         (6, 2,
-         'Ideal for outdoor use; can be painted over once cured.',                       0),
+          'Wearing a respirator and gloves further reduces inhalation and skin-contact risks.', 0),
         (7, 2,
-         'Not recommended for underwater applications.',                                 0),
+          'Refer to the Safety Data Sheet (SDS) for full details on chemical exposure limits.', 0),
         (8, 2,
-         'For best results, apply at temperatures between 50°F and 85°F.',               0),
+          'Keep containers tightly sealed when not in use to limit any off-gassing.', 0),
 
-        # Question 3
-        (9,  3,
-         'This sealant is rated for use up to 500°F.',                                   1),
+        # Q3: Enclosed spaces
+        (9, 3,
+          'Ventilation is strongly recommended; use fans or open windows to maintain air flow.', 1),
         (10, 3,
-         'Not recommended for continuous exposure above 400°F.',                         0),
+         'Avoid confined spaces without airflow—fume buildup can cause headaches or drowsiness.', 0),
         (11, 3,
-         'Avoid contact with strong acids or solvents when in service.',                 0),
+         'Take regular breaks outside the work area to minimize long-term exposure.', 0),
         (12, 3,
-         'Cure time may increase in high-humidity environments.',                        0),
+         'Always comply with local occupational health and safety guidelines when using indoors.', 0),
+
     ]
     cursor.executemany('''
       INSERT INTO Answer (answer_id, question_id, answer_text, is_primary)
